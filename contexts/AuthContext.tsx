@@ -2,103 +2,82 @@
 
 import type React from "react"
 
-import { createContext, useState, useContext, useEffect } from "react"
-import axios from "axios"
+import { createContext, useContext, useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 
 type User = {
   id: string
   username: string
-  profilePicture?: string
-  bio?: string
 }
 
 type AuthContextType = {
   user: User | null
   login: (username: string, password: string) => Promise<void>
-  logout: () => void
-  register: (username: string, password: string) => Promise<void>
-  updateProfile: (updates: Partial<User>) => Promise<void>
-  isOnboarded: boolean
-  setIsOnboarded: (value: boolean) => void
+  logout: () => Promise<void>
+  loading: boolean
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
-  const [isOnboarded, setIsOnboarded] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const router = useRouter()
 
   useEffect(() => {
-    const token = localStorage.getItem("token")
-    if (token) {
-      fetchProfile(token)
-    }
+    checkAuth()
   }, [])
 
-  const fetchProfile = async (token: string) => {
+  const checkAuth = async () => {
     try {
-      const response = await axios.get("http://localhost:5000/profile", {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      setUser(response.data)
-      setIsOnboarded(response.data.isOnboarded)
+      const res = await fetch("/api/auth/session")
+      if (res.ok) {
+        const data = await res.json()
+        setUser(data.user)
+      }
     } catch (error) {
-      console.error("Error fetching profile:", error)
-      logout()
+      console.error("Auth check error:", error)
+    } finally {
+      setLoading(false)
     }
   }
 
   const login = async (username: string, password: string) => {
     try {
-      const response = await axios.post("http://localhost:5000/login", { username, password })
-      const { token } = response.data
-      localStorage.setItem("token", token)
-      await fetchProfile(token)
+      const res = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || "Login failed")
+      }
+
+      const data = await res.json()
+      setUser(data.user)
+      router.push("/")
     } catch (error) {
       console.error("Login error:", error)
       throw error
     }
   }
 
-  const logout = () => {
-    setUser(null)
-    setIsOnboarded(false)
-    localStorage.removeItem("token")
-  }
-
-  const register = async (username: string, password: string) => {
+  const logout = async () => {
     try {
-      await axios.post("http://localhost:5000/register", { username, password })
+      await fetch("/api/logout", { method: "POST" })
+      setUser(null)
+      router.push("/login")
     } catch (error) {
-      console.error("Registration error:", error)
-      throw error
+      console.error("Logout error:", error)
     }
   }
 
-  const updateProfile = async (updates: Partial<User>) => {
-    try {
-      const token = localStorage.getItem("token")
-      if (!token) throw new Error("No token found")
-
-      const response = await axios.put("http://localhost:5000/profile", updates, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      setUser(response.data)
-      setIsOnboarded(true)
-    } catch (error) {
-      console.error("Error updating profile:", error)
-      throw error
-    }
-  }
-
-  return (
-    <AuthContext.Provider value={{ user, login, logout, register, updateProfile, isOnboarded, setIsOnboarded }}>
-      {children}
-    </AuthContext.Provider>
-  )
+  return <AuthContext.Provider value={{ user, login, logout, loading }}>{children}</AuthContext.Provider>
 }
 
-export const useAuth = () => {
+export function useAuth() {
   const context = useContext(AuthContext)
   if (context === undefined) {
     throw new Error("useAuth must be used within an AuthProvider")

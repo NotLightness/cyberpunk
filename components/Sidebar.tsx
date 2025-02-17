@@ -2,109 +2,98 @@
 
 import type React from "react"
 
-import { useState, useEffect, useRef } from "react"
-import { MessageSquare, Users, Code, Bot, Globe, Shield, Menu, X } from "lucide-react"
+import { useState } from "react"
+import Link from "next/link"
+import { useAuth } from "../contexts/AuthContext"
+import { motion } from "framer-motion"
+import {
+  Home,
+  MessageSquare,
+  Users,
+  Newspaper,
+  Settings,
+  LogOut,
+  Menu,
+  X,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react"
 
-export default function Sidebar({ setActiveSection }: { setActiveSection: (section: string) => void }) {
-  const [isOpen, setIsOpen] = useState(false)
-  const sidebarRef = useRef<HTMLDivElement>(null)
+type DeviceType = "mobile" | "tablet" | "desktop"
+
+export default function Sidebar({ deviceType }: { deviceType: DeviceType }) {
+  const [isOpen, setIsOpen] = useState(deviceType === "desktop")
+  const { user, logout } = useAuth()
 
   const toggleSidebar = () => setIsOpen(!isOpen)
 
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (sidebarRef.current && !sidebarRef.current.contains(event.target as Node)) {
-        setIsOpen(false)
-      }
-    }
+  const sidebarVariants = {
+    open: { x: 0 },
+    closed: { x: deviceType === "mobile" ? "-100%" : "-240px" },
+  }
 
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside)
-    }
-  }, [])
+  const sidebarWidth = deviceType === "mobile" ? "w-full" : deviceType === "tablet" ? "w-64" : "w-64"
 
   return (
-    <div className="relative" ref={sidebarRef}>
-      <button
-        onClick={toggleSidebar}
-        className="fixed top-4 left-4 z-50 p-2 bg-[#0a0a0a] border border-green-500 rounded-md md:hidden"
-        aria-label="Toggle sidebar"
-        aria-expanded={isOpen}
-      >
-        {isOpen ? <X className="text-green-500" /> : <Menu className="text-green-500" />}
-      </button>
-      <nav
-        className={`fixed left-0 top-0 h-full bg-[#0a0a0a] border-r border-green-500 transition-all duration-300 ease-in-out ${
-          isOpen ? "w-64" : "w-0 md:w-64"
-        } overflow-hidden`}
-        aria-label="Main navigation"
-      >
-        <div className="p-4 mt-16 md:mt-4 space-y-2">
-          <NavItem
-            icon={<MessageSquare />}
-            text="Chat Rooms"
-            onClick={() => {
-              setActiveSection("chatRooms")
-              setIsOpen(false)
-            }}
-          />
-          <NavItem
-            icon={<Users />}
-            text="Forums"
-            onClick={() => {
-              setActiveSection("forums")
-              setIsOpen(false)
-            }}
-          />
-          <NavItem
-            icon={<Code />}
-            text="Collaboration"
-            onClick={() => {
-              setActiveSection("collaboration")
-              setIsOpen(false)
-            }}
-          />
-          <NavItem
-            icon={<Bot />}
-            text="AI Assistant"
-            onClick={() => {
-              setActiveSection("aiAssistant")
-              setIsOpen(false)
-            }}
-          />
-          <NavItem
-            icon={<Globe />}
-            text="News"
-            onClick={() => {
-              setActiveSection("news")
-              setIsOpen(false)
-            }}
-          />
-          <NavItem
-            icon={<Shield />}
-            text="Profile"
-            onClick={() => {
-              setActiveSection("profile")
-              setIsOpen(false)
-            }}
-          />
+    <>
+      {deviceType === "mobile" && (
+        <div className="fixed top-0 left-0 right-0 h-16 bg-black/90 border-b border-green-500 flex items-center justify-between px-4 z-50">
+          <h1 className="text-green-400 text-xl font-bold">Cyberpunk Hacker Community</h1>
+          <button onClick={toggleSidebar} className="text-green-400">
+            {isOpen ? <X /> : <Menu />}
+          </button>
         </div>
-      </nav>
-    </div>
+      )}
+      <motion.nav
+        className={`${sidebarWidth} h-screen bg-black/90 text-green-400 fixed top-0 left-0 z-40 border-r border-green-500 ${
+          deviceType === "mobile" ? "pt-16" : ""
+        }`}
+        variants={sidebarVariants}
+        initial="closed"
+        animate={isOpen ? "open" : "closed"}
+        transition={{ duration: 0.3 }}
+      >
+        <div className="p-4">
+          <div className="flex items-center justify-between mb-8">
+            <h2 className="text-2xl font-bold">Menu</h2>
+            {deviceType !== "mobile" && (
+              <button onClick={toggleSidebar} className="text-green-400">
+                {isOpen ? <ChevronLeft /> : <ChevronRight />}
+              </button>
+            )}
+          </div>
+          <ul className="space-y-4">
+            <SidebarLink href="/" icon={<Home />} text="Home" />
+            <SidebarLink href="/chat" icon={<MessageSquare />} text="Chat Rooms" />
+            <SidebarLink href="/forums" icon={<Users />} text="Forums" />
+            <SidebarLink href="/news" icon={<Newspaper />} text="News" />
+            <SidebarLink href="/settings" icon={<Settings />} text="Settings" />
+          </ul>
+        </div>
+        {user && (
+          <div className="absolute bottom-0 left-0 right-0 p-4">
+            <button
+              onClick={logout}
+              className="flex items-center justify-center w-full bg-red-500 text-white py-2 px-4 rounded hover:bg-red-600 transition-colors"
+            >
+              <LogOut className="mr-2" />
+              Logout
+            </button>
+          </div>
+        )}
+      </motion.nav>
+    </>
   )
 }
 
-function NavItem({ icon, text, onClick }: { icon: React.ReactNode; text: string; onClick: () => void }) {
+function SidebarLink({ href, icon, text }: { href: string; icon: React.ReactNode; text: string }) {
   return (
-    <button
-      onClick={onClick}
-      className="flex items-center space-x-2 p-2 rounded w-full text-left hover:bg-green-900 transition text-green-400"
-      aria-label={text}
-    >
-      {icon}
-      <span>{text}</span>
-    </button>
+    <li>
+      <Link href={href} className="flex items-center space-x-2 text-green-400 hover:text-green-300 transition-colors">
+        {icon}
+        <span>{text}</span>
+      </Link>
+    </li>
   )
 }
 
