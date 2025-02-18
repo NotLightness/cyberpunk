@@ -33,7 +33,6 @@ export async function updateSession(request: NextRequest) {
   const session = await decrypt(token)
   if (!session) return null
 
-  // Refresh token if it's close to expiring
   if (session.exp && session.exp - Date.now() / 1000 < 60 * 30) {
     const newToken = await encrypt(session)
     cookies().set("token", newToken, {

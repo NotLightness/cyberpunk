@@ -1,16 +1,16 @@
 "use client"
 
+import type React from "react"
+
 import { useState, useEffect, useRef } from "react"
 import { useAuth } from "../contexts/AuthContext"
 import { Send, Copy, Check } from "lucide-react"
 import { toast } from "sonner"
+import io from "socket.io-client"
 
 interface Message {
   id: string
-  sender: {
-    id: string
-    username: string
-  }
+  sender: string
   content: string
   timestamp: number
 }
@@ -23,19 +23,33 @@ export default function ChatRooms() {
   const [copied, setCopied] = useState(false)
   const { user } = useAuth()
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const socketRef = useRef<any>(null)
 
   useEffect(() => {
-    // Check URL for room ID
     const urlParams = new URLSearchParams(window.location.search)
     const roomFromUrl = urlParams.get("room")
     if (roomFromUrl) {
       joinRoom(roomFromUrl)
     }
+
+    socketRef.current = io("http://localhost:5000", {
+      auth: {
+        token: localStorage.getItem("token"),
+      },
+    })
+
+    socketRef.current.on("chat message", (message: Message) => {
+      setMessages((prev) => [...prev, message])
+    })
+
+    return () => {
+      socketRef.current.disconnect()
+    }
   }, [])
 
   const joinRoom = (id: string) => {
     setSelectedRoom(id)
-    // Update URL with room ID for sharing
+    socketRef.current.emit("join room", id)
     window.history.pushState({}, "", `?room=${id}`)
   }
 
@@ -55,8 +69,19 @@ export default function ChatRooms() {
   const leaveRoom = () => {
     setSelectedRoom(null)
     setMessages([])
-    // Remove room from URL
     window.history.pushState({}, "", window.location.pathname)
+  }
+
+  const sendMessage = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newMessage.trim() || !selectedRoom) return
+
+    socketRef.current.emit("chat message", {
+      content: newMessage,
+      room: selectedRoom,
+    })
+
+    setNewMessage("")
   }
 
   return (
@@ -64,7 +89,6 @@ export default function ChatRooms() {
       <div className="md:col-span-1 bg-black/50 p-4 rounded-lg border border-green-500">
         <h3 className="text-xl font-bold mb-4 text-green-400">Chat Rooms</h3>
 
-        {/* Room Creation */}
         <button
           onClick={createRoom}
           className="w-full bg-green-500 text-black p-2 rounded mb-4 hover:bg-green-400 transition-colors"
@@ -72,7 +96,6 @@ export default function ChatRooms() {
           Create New Room
         </button>
 
-        {/* Room Joining */}
         <div className="space-y-2">
           <input
             type="text"
@@ -89,7 +112,6 @@ export default function ChatRooms() {
           </button>
         </div>
 
-        {/* Active Room Info */}
         {selectedRoom && (
           <div className="mt-4 p-2 bg-green-500/10 rounded">
             <p className="text-green-400 mb-2">Current Room ID: {selectedRoom}</p>
@@ -104,7 +126,6 @@ export default function ChatRooms() {
         )}
       </div>
 
-      {/* Chat Area */}
       <div className="md:col-span-3 bg-black/50 rounded-lg border border-green-500 flex flex-col">
         {selectedRoom ? (
           <>
@@ -122,22 +143,22 @@ export default function ChatRooms() {
               {messages.map((message) => (
                 <div
                   key={message.id}
-                  className={`flex items-start gap-3 ${message.sender.id === user?.id ? "flex-row-reverse" : ""}`}
+                  className={`flex items-start gap-3 ${message.sender === user?.username ? "flex-row-reverse" : ""}`}
                 >
                   <div
                     className={`w-8 h-8 rounded-full ${
-                      message.sender.id === user?.id ? "bg-green-500/20" : "bg-blue-500/20"
+                      message.sender === user?.username ? "bg-green-500/20" : "bg-blue-500/20"
                     } flex items-center justify-center text-green-400 text-sm`}
                   >
-                    {message.sender.username[0].toUpperCase()}
+                    {message.sender[0].toUpperCase()}
                   </div>
                   <div
                     className={`max-w-[70%] ${
-                      message.sender.id === user?.id ? "bg-green-500/20" : "bg-black/50"
+                      message.sender === user?.username ? "bg-green-500/20" : "bg-black/50"
                     } p-3 rounded-lg`}
                   >
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="font-medium text-green-400">{message.sender.username}</span>
+                      <span className="font-medium text-green-400">{message.sender}</span>
                       <span className="text-xs text-green-500/60">
                         {new Date(message.timestamp).toLocaleTimeString()}
                       </span>
@@ -149,7 +170,7 @@ export default function ChatRooms() {
               <div ref={messagesEndRef} />
             </div>
 
-            <form className="p-4 border-t border-green-500">
+            <form onSubmit={sendMessage} className="p-4 border-t border-green-500">
               <div className="flex items-center gap-2">
                 <input
                   type="text"

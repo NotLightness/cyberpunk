@@ -30,7 +30,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
     }
 
-    // Check account lock
     if (user.lockUntil && user.lockUntil > new Date()) {
       return NextResponse.json({ error: "Account is locked. Please try again later." }, { status: 423 })
     }
@@ -38,7 +37,6 @@ export async function POST(req: NextRequest) {
     const isValid = await bcrypt.compare(password, user.password)
 
     if (!isValid) {
-      // Increment login attempts
       await prisma.user.update({
         where: { id: user.id },
         data: {
@@ -50,7 +48,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
     }
 
-    // Reset login attempts on successful login
     await prisma.user.update({
       where: { id: user.id },
       data: {
@@ -59,13 +56,11 @@ export async function POST(req: NextRequest) {
       },
     })
 
-    // Create session
     const token = await encrypt({
       id: user.id,
       username: user.username,
     })
 
-    // Set HTTP-only cookie
     cookies().set("token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
